@@ -26,13 +26,13 @@ apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
     namespace 'io.flutter.plugins.cameraexample'
-    compileSdk flutter.compileSdkVersion
+    compileSdk 34
 
 
     defaultConfig {
         applicationId "io.flutter.plugins.cameraexample"
         minSdkVersion 21
-        targetSdkVersion 28
+        targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

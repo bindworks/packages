@@ -4,7 +4,13 @@
 
 package io.flutter.plugins.camera;
 
+import android.graphics.ImageFormat;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CaptureResult;
+import android.hardware.camera2.DngCreator;
 import android.media.Image;
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 import java.io.File;
@@ -25,6 +31,10 @@ public class ImageSaver implements Runnable {
   /** Used to report the status of the save action. */
   private final Callback callback;
 
+  private final CaptureResult captureResult;
+
+  private final CameraCharacteristics cameraCharacteristics;
+
   /**
    * Creates an instance of the ImageSaver runnable
    *
@@ -32,14 +42,49 @@ public class ImageSaver implements Runnable {
    * @param file - The file to save the image to
    * @param callback - The callback that is run on completion, or when an error is encountered.
    */
-  ImageSaver(@NonNull Image image, @NonNull File file, @NonNull Callback callback) {
+  ImageSaver(
+          @NonNull Image image,
+          @NonNull File file,
+          @NonNull Callback callback,
+          @NonNull CaptureResult captureResult,
+          @NonNull CameraCharacteristics cameraCharacteristics
+  ) {
     this.image = image;
     this.file = file;
     this.callback = callback;
+    this.captureResult = captureResult;
+    this.cameraCharacteristics = cameraCharacteristics;
   }
 
   @Override
   public void run() {
+    if (image.getFormat() == ImageFormat.RAW_SENSOR) {
+      DngCreator dngCreator = new DngCreator(cameraCharacteristics, captureResult);
+
+      FileOutputStream output = null;
+
+      try {
+        output = FileOutputStreamFactory.create(file);
+        dngCreator.writeImage(output, image);
+
+        callback.onComplete(file.getAbsolutePath());
+
+      } catch (IOException e) {
+        callback.onError("IOError", "Failed saving image");
+      } finally {
+        image.close();
+        if (null != output) {
+          try {
+            output.close();
+          } catch (IOException e) {
+            callback.onError("cameraAccess", e.getMessage());
+          }
+        }
+      }
+
+      return;
+    }
+
     ByteBuffer buffer = image.getPlanes()[0].getBuffer();
     byte[] bytes = new byte[buffer.remaining()];
     buffer.get(bytes);

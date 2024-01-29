@@ -5,6 +5,8 @@
 package io.flutter.plugins.camera;
 
 import android.graphics.Rect;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Build.VERSION_CODES;
 import android.util.Range;
 import android.util.Size;
@@ -273,4 +275,11 @@ public interface CameraProperties {
    */
   @NonNull
   int[] getAvailableNoiseReductionModes();
+
+  @NonNull
+  StreamConfigurationMap getStreamConfigurationMap();
+
+  int[] getAvailableCapabilities();
+
+  CameraCharacteristics getCameraCharacteristics();
 }

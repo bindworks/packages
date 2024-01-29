@@ -12,18 +12,22 @@ import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.OutputConfiguration;
 import android.hardware.camera2.params.SessionConfiguration;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.CamcorderProfile;
 import android.media.EncoderProfiles;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -35,6 +39,8 @@ import android.view.Surface;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+
+import io.flutter.BuildConfig;
 import io.flutter.embedding.engine.systemchannels.PlatformChannel;
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodChannel;
@@ -60,15 +66,18 @@ import io.flutter.plugins.camera.media.ImageStreamReader;
 import io.flutter.plugins.camera.media.MediaRecorderBuilder;
 import io.flutter.plugins.camera.types.CameraCaptureProperties;
 import io.flutter.plugins.camera.types.CaptureTimeoutsWrapper;
+import io.flutter.plugins.camera.utils.CompareSizesByArea;
 import io.flutter.view.TextureRegistry.SurfaceTextureEntry;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @FunctionalInterface
 interface ErrorCallback {
@@ -129,6 +138,7 @@ class Camera
   CameraDeviceWrapper cameraDevice;
   CameraCaptureSession captureSession;
   private ImageReader pictureImageReader;
+  private ImageReader rawImageReader;
   ImageStreamReader imageStreamReader;
   /** {@link CaptureRequest.Builder} for the camera preview */
   CaptureRequest.Builder previewRequestBuilder;
@@ -140,6 +150,8 @@ class Camera
   private boolean pausedPreview;
 
   private File captureFile;
+  private Image image;
+  private CaptureResult captureResult;
 
   /** Holds the current capture timeouts */
   private CaptureTimeoutsWrapper captureTimeouts;
@@ -288,12 +300,47 @@ class Camera
       return;
     }
 
+    int[] capabilities = cameraProperties.getAvailableCapabilities();
+    StreamConfigurationMap map = cameraProperties.getStreamConfigurationMap();
+
+    boolean rawSupported = false;
+
+    for (int capability : capabilities) {
+      if (capability == CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) {
+        rawSupported = true;
+        break;
+      }
+    }
+
+    Log.i(TAG, "Raw supported: " + rawSupported);
+
+    Log.i(TAG, "RAW_SENSOR format supported: " + map.isOutputSupportedFor(ImageFormat.RAW_SENSOR));
+    if (Build.VERSION.SDK_INT >= VERSION_CODES.N) {
+      Log.i(TAG, "RAW_PRIVATE format supported: " + map.isOutputSupportedFor(ImageFormat.RAW_PRIVATE));
+    }
+    Log.i(TAG, "RAW10 format supported: " + map.isOutputSupportedFor(ImageFormat.RAW10));
+    if (Build.VERSION.SDK_INT >= VERSION_CODES.M) {
+      Log.i(TAG, "RAW12 format supported: " + map.isOutputSupportedFor(ImageFormat.RAW12));
+    }
+
     // Always capture using JPEG format.
     pictureImageReader =
+            ImageReader.newInstance(
+                    resolutionFeature.getCaptureSize().getWidth(),
+                    resolutionFeature.getCaptureSize().getHeight(),
+                    ImageFormat.JPEG,
+                    1);
+
+    Size largestRaw = Collections.max(
+            Arrays.asList(map.getOutputSizes(ImageFormat.RAW_SENSOR)),
+            new CompareSizesByArea()
+    );
+
+    rawImageReader =
         ImageReader.newInstance(
-            resolutionFeature.getCaptureSize().getWidth(),
-            resolutionFeature.getCaptureSize().getHeight(),
-            ImageFormat.JPEG,
+            largestRaw.getWidth(),
+            largestRaw.getHeight(),
+            ImageFormat.RAW_SENSOR,
             1);
 
     // For image streaming, use the provided image format or fall back to YUV420.
@@ -416,8 +463,9 @@ class Camera
       // except the surface used for still capture as this should
       // not be part of a repeating request.
       Surface pictureImageReaderSurface = pictureImageReader.getSurface();
+      Surface rawImageReaderSurface = rawImageReader.getSurface();
       for (Surface surface : remainingSurfaces) {
-        if (surface == pictureImageReaderSurface) {
+        if (surface == pictureImageReaderSurface || surface == rawImageReaderSurface) {
           continue;
         }
         previewRequestBuilder.addTarget(surface);
@@ -546,6 +594,7 @@ class Camera
     // Add pictureImageReader surface to allow for still capture
     // during recording/image streaming.
     surfaces.add(pictureImageReader.getSurface());
+    surfaces.add(rawImageReader.getSurface());
 
     createCaptureSession(
         CameraDevice.TEMPLATE_RECORD, successCallback, surfaces.toArray(new Surface[0]));
@@ -563,7 +612,7 @@ class Camera
     // Create temporary file.
     final File outputDir = applicationContext.getCacheDir();
     try {
-      captureFile = File.createTempFile("CAP", ".jpg", outputDir);
+      captureFile = File.createTempFile("CAP", ".dng", outputDir);
       captureTimeouts.reset();
     } catch (IOException | SecurityException e) {
       dartMessenger.error(flutterResult, "cannotCreateFile", e.getMessage(), null);
@@ -571,7 +620,7 @@ class Camera
     }
 
     // Listen for picture being taken.
-    pictureImageReader.setOnImageAvailableListener(this, backgroundHandler);
+    rawImageReader.setOnImageAvailableListener(this, backgroundHandler);
 
     final AutoFocusFeature autoFocusFeature = cameraFeatures.getAutoFocus();
     final boolean isAutoFocusSupported = autoFocusFeature.checkIsSupported();
@@ -636,7 +685,7 @@ class Camera
       dartMessenger.error(flutterResult, "cameraAccess", e.getMessage(), null);
       return;
     }
-    stillBuilder.addTarget(pictureImageReader.getSurface());
+    stillBuilder.addTarget(rawImageReader.getSurface());
 
     // Zoom.
     stillBuilder.set(
@@ -662,6 +711,12 @@ class Camera
               @NonNull CameraCaptureSession session,
               @NonNull CaptureRequest request,
               @NonNull TotalCaptureResult result) {
+            Log.i(TAG, "onCaptureCompleted");
+
+            captureResult = result;
+
+            trySave();
+
             unlockAutoFocus();
           }
         };
@@ -1102,9 +1157,14 @@ class Camera
   }
 
   private void startRegularPreview() throws CameraAccessException {
-    if (pictureImageReader == null || pictureImageReader.getSurface() == null) return;
+    if (pictureImageReader == null || pictureImageReader.getSurface() == null ||
+        rawImageReader == null || rawImageReader.getSurface() == null) return;
     Log.i(TAG, "startPreview");
-    createCaptureSession(CameraDevice.TEMPLATE_PREVIEW, pictureImageReader.getSurface());
+    createCaptureSession(
+            CameraDevice.TEMPLATE_PREVIEW,
+            pictureImageReader.getSurface(),
+            rawImageReader.getSurface()
+    );
   }
 
   private void startPreviewWithVideoRendererStream()
@@ -1151,28 +1211,16 @@ class Camera
   @Override
   public void onImageAvailable(ImageReader reader) {
     Log.i(TAG, "onImageAvailable");
-
     // Use acquireNextImage since image reader is only for one image.
     Image image = reader.acquireNextImage();
     if (image == null) {
       return;
     }
 
-    backgroundHandler.post(
-        new ImageSaver(
-            image,
-            captureFile,
-            new ImageSaver.Callback() {
-              @Override
-              public void onComplete(String absolutePath) {
-                dartMessenger.finish(flutterResult, absolutePath);
-              }
+    this.image = image;
 
-              @Override
-              public void onError(String errorCode, String errorMessage) {
-                dartMessenger.error(flutterResult, errorCode, errorMessage, null);
-              }
-            }));
+
+
     cameraCaptureCallback.setCameraState(CameraState.STATE_PREVIEW);
   }
 
@@ -1242,6 +1290,10 @@ class Camera
     if (pictureImageReader != null) {
       pictureImageReader.close();
       pictureImageReader = null;
+    }
+    if (rawImageReader != null) {
+      rawImageReader.close();
+      rawImageReader = null;
     }
     if (imageStreamReader != null) {
       imageStreamReader.close();
@@ -1331,6 +1383,34 @@ class Camera
     close();
     flutterTexture.release();
     getDeviceOrientationManager().stop();
+  }
+
+  private void trySave() {
+    if (image == null || captureResult == null || captureFile == null) {
+      return;
+    }
+
+    backgroundHandler.post(
+            new ImageSaver(
+                    image,
+                    captureFile,
+                    new ImageSaver.Callback() {
+                      @Override
+                      public void onComplete(String absolutePath) {
+                        captureResult = null;
+                        image = null;
+                        dartMessenger.finish(flutterResult, absolutePath);
+                      }
+
+                      @Override
+                      public void onError(String errorCode, String errorMessage) {
+                        dartMessenger.error(flutterResult, errorCode, errorMessage, null);
+                      }
+                    },
+                    captureResult,
+                    cameraProperties.getCameraCharacteristics()
+            )
+    );
   }
 
   /** Factory class that assists in creating a {@link HandlerThread} instance. */

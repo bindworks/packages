@@ -8,6 +8,7 @@ import android.graphics.Rect;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Build.VERSION_CODES;
 import android.util.Range;
 import android.util.Rational;
@@ -163,5 +164,21 @@ public class CameraPropertiesImpl implements CameraProperties {
   public int[] getAvailableNoiseReductionModes() {
     return cameraCharacteristics.get(
         CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES);
+  }
+
+  @NonNull
+  @Override
+  public StreamConfigurationMap getStreamConfigurationMap() {
+    return cameraCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+  }
+
+  @Override
+  public int[] getAvailableCapabilities() {
+    return cameraCharacteristics.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);
+  }
+
+  @Override
+  public CameraCharacteristics getCameraCharacteristics() {
+    return cameraCharacteristics;
   }
 }
