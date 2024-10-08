@@ -121,10 +121,10 @@ void main() {
     required bool shouldPlayInBackground,
   }) {
     expect(controller.value.isPlaying, true);
-    _ambiguate(WidgetsBinding.instance)!
+    WidgetsBinding.instance
         .handleAppLifecycleStateChanged(AppLifecycleState.paused);
     expect(controller.value.isPlaying, shouldPlayInBackground);
-    _ambiguate(WidgetsBinding.instance)!
+    WidgetsBinding.instance
         .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     expect(controller.value.isPlaying, true);
   }
@@ -1069,7 +1069,8 @@ void main() {
           'isBuffering: true, '
           'volume: 0.5, '
           'playbackSpeed: 1.5, '
-          'errorDescription: null)');
+          'errorDescription: null, '
+          'isCompleted: false),');
     });
 
     group('copyWith()', () {
@@ -1204,6 +1205,101 @@ void main() {
     expect(colors.bufferedColor, bufferedColor);
     expect(colors.backgroundColor, backgroundColor);
   });
+
+  test('isCompleted updates on video end', () async {
+    final VideoPlayerController controller = VideoPlayerController.networkUrl(
+      _localhostUri,
+      videoPlayerOptions: VideoPlayerOptions(),
+    );
+
+    await controller.initialize();
+
+    final StreamController<VideoEvent> fakeVideoEventStream =
+        fakeVideoPlayerPlatform.streams[controller.textureId]!;
+
+    bool currentIsCompleted = controller.value.isCompleted;
+
+    final void Function() isCompletedTest = expectAsync0(() {});
+
+    controller.addListener(() async {
+      if (currentIsCompleted != controller.value.isCompleted) {
+        currentIsCompleted = controller.value.isCompleted;
+        if (controller.value.isCompleted) {
+          isCompletedTest();
+        }
+      }
+    });
+
+    fakeVideoEventStream.add(VideoEvent(eventType: VideoEventType.completed));
+  });
+
+  test('isCompleted updates on video play after completed', () async {
+    final VideoPlayerController controller = VideoPlayerController.networkUrl(
+      _localhostUri,
+      videoPlayerOptions: VideoPlayerOptions(),
+    );
+
+    await controller.initialize();
+
+    final StreamController<VideoEvent> fakeVideoEventStream =
+        fakeVideoPlayerPlatform.streams[controller.textureId]!;
+
+    bool currentIsCompleted = controller.value.isCompleted;
+
+    final void Function() isCompletedTest = expectAsync0(() {}, count: 2);
+    final void Function() isNoLongerCompletedTest = expectAsync0(() {});
+    bool hasLooped = false;
+
+    controller.addListener(() async {
+      if (currentIsCompleted != controller.value.isCompleted) {
+        currentIsCompleted = controller.value.isCompleted;
+        if (controller.value.isCompleted) {
+          isCompletedTest();
+          if (!hasLooped) {
+            fakeVideoEventStream.add(VideoEvent(
+                eventType: VideoEventType.isPlayingStateUpdate,
+                isPlaying: true));
+            hasLooped = !hasLooped;
+          }
+        } else {
+          isNoLongerCompletedTest();
+        }
+      }
+    });
+
+    fakeVideoEventStream.add(VideoEvent(eventType: VideoEventType.completed));
+  });
+
+  test('isCompleted updates on video seek to end', () async {
+    final VideoPlayerController controller = VideoPlayerController.networkUrl(
+      _localhostUri,
+      videoPlayerOptions: VideoPlayerOptions(),
+    );
+
+    await controller.initialize();
+
+    bool currentIsCompleted = controller.value.isCompleted;
+
+    final void Function() isCompletedTest = expectAsync0(() {});
+
+    controller.value =
+        controller.value.copyWith(duration: const Duration(seconds: 10));
+
+    controller.addListener(() async {
+      if (currentIsCompleted != controller.value.isCompleted) {
+        currentIsCompleted = controller.value.isCompleted;
+        if (controller.value.isCompleted) {
+          isCompletedTest();
+        }
+      }
+    });
+
+    // This call won't update isCompleted.
+    // The test will fail if `isCompletedTest` is called more than once.
+    await controller.seekTo(const Duration(seconds: 10));
+
+    await controller.seekTo(const Duration(seconds: 20));
+  });
 }
 
 class FakeVideoPlayerPlatform extends VideoPlayerPlatform {
@@ -1215,6 +1311,8 @@ class FakeVideoPlayerPlatform extends VideoPlayerPlatform {
   bool forceInitError = false;
   int nextTextureId = 0;
   final Map<int, Duration> _positions = <int, Duration>{};
+  final Map<int, VideoPlayerWebOptions> webOptions =
+      <int, VideoPlayerWebOptions>{};
 
   @override
   Future<int?> create(DataSource dataSource) async {
@@ -1296,10 +1394,14 @@ class FakeVideoPlayerPlatform extends VideoPlayerPlatform {
   Widget buildView(int textureId) {
     return Texture(textureId: textureId);
   }
-}
 
-/// This allows a value of type T or T? to be treated as a value of type T?.
-///
-/// We use this so that APIs that have become non-nullable can still be used
-/// with `!` and `?` on the stable branch.
-T? _ambiguate<T>(T? value) => value;
+  @override
+  Future<void> setWebOptions(
+      int textureId, VideoPlayerWebOptions options) async {
+    if (!kIsWeb) {
+      throw UnimplementedError('setWebOptions() is only available in the web.');
+    }
+    calls.add('setWebOptions');
+    webOptions[textureId] = options;
+  }
+}

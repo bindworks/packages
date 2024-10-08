@@ -1,5 +1,107 @@
-## NEXT
+## 2.7.9
 
+* Updates Java compatibility version to 11.
+
+## 2.7.8
+
+* Updates Pigeon for non-nullable collection type support.
+
+## 2.7.7
+
+* Removes the flag to treat warnings as errors in client builds.
+
+## 2.7.6
+
+* Fixes a [bug](https://github.com/flutter/flutter/issues/154602) where
+  resuming a video player would cause a `Bad state: Future already completed`.
+
+## 2.7.5
+
+* Add a deprecation suppression in advance of a new `SurfaceProducer` API.
+
+## 2.7.4
+
+* Fixes a [bug](https://github.com/flutter/flutter/issues/154559) where
+  resuming (or using a plugin like `share_plus` that implicitly resumes the
+  activity where) a video player would cause a `DecoderInitializationException`.
+
+## 2.7.3
+
+* Updates Media3-ExoPlayer to 1.4.1.
+
+## 2.7.2
+
+* Updates minimum supported SDK version to Flutter 3.24/Dart 3.5.
+
+* Re-adds Impeller support.
+
+## 2.7.1
+
+* Revert Impeller support.
+
+## 2.7.0
+
+* Re-adds [support for Impeller](https://docs.flutter.dev/release/breaking-changes/android-surface-plugins).
+
+## 2.6.0
+
+* Adds RTSP support.
+
+## 2.5.4
+
+* Updates Media3-ExoPlayer to 1.4.0.
+
+## 2.5.3
+
+* Updates lint checks to ignore NewerVersionAvailable.
+
+## 2.5.2
+
+* Updates Android Gradle plugin to 8.5.0.
+
+## 2.5.1
+
+* Removes additional references to the v1 Android embedding.
+
+## 2.5.0
+
+* Migrates ExoPlayer to Media3-ExoPlayer 1.3.1.
+
+## 2.4.17
+
+* Revert Impeller support.
+
+## 2.4.16
+
+* [Supports Impeller](https://docs.flutter.dev/release/breaking-changes/android-surface-plugins).
+
+## 2.4.15
+
+* Updates minimum supported SDK version to Flutter 3.22/Dart 3.4.
+* Removes support for apps using the v1 Android embedding.
+
+## 2.4.14
+
+* Calls `onDestroy` instead of `initialize` in onDetachedFromEngine.
+
+## 2.4.13
+
+* Updates minSdkVersion to 19.
+* Updates minimum supported SDK version to Flutter 3.16/Dart 3.2.
+
+## 2.4.12
+
+* Updates compileSdk version to 34.
+* Adds error handling for `BehindLiveWindowException`, which may occur upon live-video playback failure.
+
+## 2.4.11
+
+* Updates minimum supported SDK version to Flutter 3.10/Dart 3.0.
+* Fixes new lint warnings.
+
+## 2.4.10
+
+* Adds pub topics to package metadata.
 * Updates minimum supported SDK version to Flutter 3.7/Dart 2.19.
 
 ## 2.4.9

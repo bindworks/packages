@@ -1,5 +1,20 @@
-## NEXT
+## 3.2.1
 
+* Adds privacy manifest.
+* Updates minimum supported SDK version to Flutter 3.19/Dart 3.3.
+
+## 3.2.0
+
+* Adds Swift Package Manager compatibility.
+* Updates minimum supported SDK version to Flutter 3.13/Dart 3.1.
+
+## 3.1.0
+
+* Implements `supportsMode` and `supportsCloseForMode`.
+
+## 3.0.7
+
+* Adds pub topics to package metadata.
 * Updates minimum supported SDK version to Flutter 3.7/Dart 2.19.
 
 ## 3.0.6

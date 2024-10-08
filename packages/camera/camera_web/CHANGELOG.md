@@ -1,5 +1,37 @@
 ## NEXT
 
+* Updates minimum supported SDK version to Flutter 3.22/Dart 3.4.
+
+## 0.3.5
+
+* Migrates to package:web to support WASM
+* Updates minimum supported SDK version to Flutter 3.19/Dart 3.3.
+
+## 0.3.4
+
+* Removes `maxVideoDuration`/`maxDuration`, as the feature was never exposed at
+  the app-facing package level, and is deprecated at the platform interface
+  level.
+* Updates minimum supported SDK version to Flutter 3.16/Dart 3.2.
+
+## 0.3.3
+
+* Adds support to control video FPS and bitrate. See `CameraController.withSettings`.
+* Updates minimum supported SDK version to Flutter 3.13/Dart 3.1.
+
+## 0.3.2+4
+
+* Updates minimum supported SDK version to Flutter 3.10/Dart 3.0.
+* Fixes new lint warnings.
+
+## 0.3.2+3
+
+* Migrates to `dart:ui_web` APIs.
+* Updates minimum supported SDK version to Flutter 3.13.0/Dart 3.1.0.
+
+## 0.3.2+2
+
+* Adds pub topics to package metadata.
 * Updates minimum supported SDK version to Flutter 3.7/Dart 2.19.
 
 ## 0.3.2+1

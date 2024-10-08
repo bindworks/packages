@@ -30,10 +30,8 @@ import io.flutter.embedding.engine.plugins.lifecycle.HiddenLifecycleReference;
 import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugins.localauth.AuthenticationHelper.AuthCompletionHandler;
 import io.flutter.plugins.localauth.Messages.AuthClassification;
-import io.flutter.plugins.localauth.Messages.AuthClassificationWrapper;
 import io.flutter.plugins.localauth.Messages.AuthOptions;
 import io.flutter.plugins.localauth.Messages.AuthResult;
-import io.flutter.plugins.localauth.Messages.AuthResultWrapper;
 import io.flutter.plugins.localauth.Messages.AuthStrings;
 import io.flutter.plugins.localauth.Messages.Result;
 import java.util.List;
@@ -72,23 +70,23 @@ public class LocalAuthTest {
     final LocalAuthPlugin plugin = new LocalAuthPlugin();
     plugin.authInProgress.set(true);
     @SuppressWarnings("unchecked")
-    final Result<AuthResultWrapper> mockResult = mock(Result.class);
+    final Result<AuthResult> mockResult = mock(Result.class);
     plugin.authenticate(defaultOptions, dummyStrings, mockResult);
-    ArgumentCaptor<AuthResultWrapper> captor = ArgumentCaptor.forClass(AuthResultWrapper.class);
+    ArgumentCaptor<AuthResult> captor = ArgumentCaptor.forClass(AuthResult.class);
     verify(mockResult).success(captor.capture());
-    assertEquals(AuthResult.ERROR_ALREADY_IN_PROGRESS, captor.getValue().getValue());
+    assertEquals(AuthResult.ERROR_ALREADY_IN_PROGRESS, captor.getValue());
   }
 
   @Test
   public void authenticate_returnsErrorWithNoForegroundActivity() {
     final LocalAuthPlugin plugin = new LocalAuthPlugin();
     @SuppressWarnings("unchecked")
-    final Result<AuthResultWrapper> mockResult = mock(Result.class);
+    final Result<AuthResult> mockResult = mock(Result.class);
 
     plugin.authenticate(defaultOptions, dummyStrings, mockResult);
-    ArgumentCaptor<AuthResultWrapper> captor = ArgumentCaptor.forClass(AuthResultWrapper.class);
+    ArgumentCaptor<AuthResult> captor = ArgumentCaptor.forClass(AuthResult.class);
     verify(mockResult).success(captor.capture());
-    assertEquals(AuthResult.ERROR_NO_ACTIVITY, captor.getValue().getValue());
+    assertEquals(AuthResult.ERROR_NO_ACTIVITY, captor.getValue());
   }
 
   @Test
@@ -96,11 +94,11 @@ public class LocalAuthTest {
     final LocalAuthPlugin plugin = new LocalAuthPlugin();
     setPluginActivity(plugin, buildMockActivityWithContext(mock(NativeActivity.class)));
     @SuppressWarnings("unchecked")
-    final Result<AuthResultWrapper> mockResult = mock(Result.class);
+    final Result<AuthResult> mockResult = mock(Result.class);
     plugin.authenticate(defaultOptions, dummyStrings, mockResult);
-    ArgumentCaptor<AuthResultWrapper> captor = ArgumentCaptor.forClass(AuthResultWrapper.class);
+    ArgumentCaptor<AuthResult> captor = ArgumentCaptor.forClass(AuthResult.class);
     verify(mockResult).success(captor.capture());
-    assertEquals(AuthResult.ERROR_NOT_FRAGMENT_ACTIVITY, captor.getValue().getValue());
+    assertEquals(AuthResult.ERROR_NOT_FRAGMENT_ACTIVITY, captor.getValue());
   }
 
   @Test
@@ -108,12 +106,12 @@ public class LocalAuthTest {
     final LocalAuthPlugin plugin = new LocalAuthPlugin();
     setPluginActivity(plugin, buildMockActivityWithContext(mock(FragmentActivity.class)));
     @SuppressWarnings("unchecked")
-    final Result<AuthResultWrapper> mockResult = mock(Result.class);
+    final Result<AuthResult> mockResult = mock(Result.class);
 
     plugin.authenticate(defaultOptions, dummyStrings, mockResult);
-    ArgumentCaptor<AuthResultWrapper> captor = ArgumentCaptor.forClass(AuthResultWrapper.class);
+    ArgumentCaptor<AuthResult> captor = ArgumentCaptor.forClass(AuthResult.class);
     verify(mockResult).success(captor.capture());
-    assertEquals(AuthResult.ERROR_NOT_AVAILABLE, captor.getValue().getValue());
+    assertEquals(AuthResult.ERROR_NOT_AVAILABLE, captor.getValue());
   }
 
   @Test
@@ -138,7 +136,7 @@ public class LocalAuthTest {
             allowCredentialsCaptor.capture(),
             any(AuthCompletionHandler.class));
     @SuppressWarnings("unchecked")
-    final Result<AuthResultWrapper> mockResult = mock(Result.class);
+    final Result<AuthResult> mockResult = mock(Result.class);
 
     final AuthOptions options =
         new AuthOptions.Builder()
@@ -172,7 +170,7 @@ public class LocalAuthTest {
             allowCredentialsCaptor.capture(),
             any(AuthCompletionHandler.class));
     @SuppressWarnings("unchecked")
-    final Result<AuthResultWrapper> mockResult = mock(Result.class);
+    final Result<AuthResult> mockResult = mock(Result.class);
 
     plugin.authenticate(defaultOptions, dummyStrings, mockResult);
     assertTrue(allowCredentialsCaptor.getValue());
@@ -201,7 +199,7 @@ public class LocalAuthTest {
             allowCredentialsCaptor.capture(),
             any(AuthCompletionHandler.class));
     @SuppressWarnings("unchecked")
-    final Result<AuthResultWrapper> mockResult = mock(Result.class);
+    final Result<AuthResult> mockResult = mock(Result.class);
 
     plugin.authenticate(defaultOptions, dummyStrings, mockResult);
     assertTrue(allowCredentialsCaptor.getValue());
@@ -292,7 +290,7 @@ public class LocalAuthTest {
         .thenReturn(BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE);
     plugin.setBiometricManager(mockBiometricManager);
 
-    final List<AuthClassificationWrapper> enrolled = plugin.getEnrolledBiometrics();
+    final List<AuthClassification> enrolled = plugin.getEnrolledBiometrics();
     assertTrue(enrolled.isEmpty());
   }
 
@@ -305,7 +303,7 @@ public class LocalAuthTest {
         .thenReturn(BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED);
     plugin.setBiometricManager(mockBiometricManager);
 
-    final List<AuthClassificationWrapper> enrolled = plugin.getEnrolledBiometrics();
+    final List<AuthClassification> enrolled = plugin.getEnrolledBiometrics();
     assertTrue(enrolled.isEmpty());
   }
 
@@ -320,9 +318,9 @@ public class LocalAuthTest {
         .thenReturn(BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED);
     plugin.setBiometricManager(mockBiometricManager);
 
-    final List<AuthClassificationWrapper> enrolled = plugin.getEnrolledBiometrics();
+    final List<AuthClassification> enrolled = plugin.getEnrolledBiometrics();
     assertEquals(1, enrolled.size());
-    assertEquals(AuthClassification.WEAK, enrolled.get(0).getValue());
+    assertEquals(AuthClassification.WEAK, enrolled.get(0));
   }
 
   @Test
@@ -336,10 +334,10 @@ public class LocalAuthTest {
         .thenReturn(BiometricManager.BIOMETRIC_SUCCESS);
     plugin.setBiometricManager(mockBiometricManager);
 
-    final List<AuthClassificationWrapper> enrolled = plugin.getEnrolledBiometrics();
+    final List<AuthClassification> enrolled = plugin.getEnrolledBiometrics();
     assertEquals(2, enrolled.size());
-    assertEquals(AuthClassification.WEAK, enrolled.get(0).getValue());
-    assertEquals(AuthClassification.STRONG, enrolled.get(1).getValue());
+    assertEquals(AuthClassification.WEAK, enrolled.get(0));
+    assertEquals(AuthClassification.STRONG, enrolled.get(1));
   }
 
   @Test

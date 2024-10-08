@@ -38,6 +38,9 @@ void main() {
       runner = CommandRunner<void>(
           'drive_examples_command', 'Test for drive_example_command');
       runner.addCommand(command);
+
+      // TODO(dit): Clean this up, https://github.com/flutter/flutter/issues/151869
+      mockPlatform.environment['CHANNEL'] = 'master';
     });
 
     void setMockFlutterDevicesOutput({
@@ -82,6 +85,24 @@ void main() {
         output,
         containsAllInOrder(<Matcher>[
           contains('Exactly one of'),
+        ]),
+      );
+    });
+
+    test('fails if wasm flag is present but not web platform', () async {
+      setMockFlutterDevicesOutput();
+      Error? commandError;
+      final List<String> output = await runCapturingPrint(
+          runner, <String>['drive-examples', '--android', '--wasm'],
+          errorHandler: (Error e) {
+        commandError = e;
+      });
+
+      expect(commandError, isA<ToolExit>());
+      expect(
+        output,
+        containsAllInOrder(<Matcher>[
+          contains('--wasm is only supported on the web platform'),
         ]),
       );
     });
@@ -448,6 +469,173 @@ void main() {
           ]));
     });
 
+    // This tests the workaround for https://github.com/flutter/flutter/issues/135673
+    // and the behavior it tests should be removed once that is fixed.
+    group('runs tests separately on desktop', () {
+      test('macOS', () async {
+        final RepositoryPackage plugin = createFakePlugin(
+          'plugin',
+          packagesDir,
+          extraFiles: <String>[
+            'example/integration_test/first_test.dart',
+            'example/integration_test/second_test.dart',
+            'example/macos/macos.swift',
+          ],
+          platformSupport: <String, PlatformDetails>{
+            platformMacOS: const PlatformDetails(PlatformSupport.inline),
+          },
+        );
+
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+        final List<String> output = await runCapturingPrint(runner, <String>[
+          'drive-examples',
+          '--macos',
+        ]);
+
+        expect(
+          output,
+          containsAllInOrder(<Matcher>[
+            contains('Running for plugin'),
+            contains('No issues found!'),
+          ]),
+        );
+
+        expect(
+            processRunner.recordedCalls,
+            orderedEquals(<ProcessCall>[
+              ProcessCall(
+                  getFlutterCommand(mockPlatform),
+                  const <String>[
+                    'test',
+                    '-d',
+                    'macos',
+                    'integration_test/first_test.dart',
+                  ],
+                  pluginExampleDirectory.path),
+              ProcessCall(
+                  getFlutterCommand(mockPlatform),
+                  const <String>[
+                    'test',
+                    '-d',
+                    'macos',
+                    'integration_test/second_test.dart',
+                  ],
+                  pluginExampleDirectory.path),
+            ]));
+      });
+
+      // This tests the workaround for https://github.com/flutter/flutter/issues/135673
+      // and the behavior it tests should be removed once that is fixed.
+      test('Linux', () async {
+        final RepositoryPackage plugin = createFakePlugin(
+          'plugin',
+          packagesDir,
+          extraFiles: <String>[
+            'example/integration_test/first_test.dart',
+            'example/integration_test/second_test.dart',
+            'example/linux/foo.cc',
+          ],
+          platformSupport: <String, PlatformDetails>{
+            platformLinux: const PlatformDetails(PlatformSupport.inline),
+          },
+        );
+
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+        final List<String> output = await runCapturingPrint(runner, <String>[
+          'drive-examples',
+          '--linux',
+        ]);
+
+        expect(
+          output,
+          containsAllInOrder(<Matcher>[
+            contains('Running for plugin'),
+            contains('No issues found!'),
+          ]),
+        );
+
+        expect(
+            processRunner.recordedCalls,
+            orderedEquals(<ProcessCall>[
+              ProcessCall(
+                  getFlutterCommand(mockPlatform),
+                  const <String>[
+                    'test',
+                    '-d',
+                    'linux',
+                    'integration_test/first_test.dart',
+                  ],
+                  pluginExampleDirectory.path),
+              ProcessCall(
+                  getFlutterCommand(mockPlatform),
+                  const <String>[
+                    'test',
+                    '-d',
+                    'linux',
+                    'integration_test/second_test.dart',
+                  ],
+                  pluginExampleDirectory.path),
+            ]));
+      });
+
+      // This tests the workaround for https://github.com/flutter/flutter/issues/135673
+      // and the behavior it tests should be removed once that is fixed.
+      test('Windows', () async {
+        final RepositoryPackage plugin = createFakePlugin(
+          'plugin',
+          packagesDir,
+          extraFiles: <String>[
+            'example/integration_test/first_test.dart',
+            'example/integration_test/second_test.dart',
+            'example/windows/foo.cpp',
+          ],
+          platformSupport: <String, PlatformDetails>{
+            platformWindows: const PlatformDetails(PlatformSupport.inline),
+          },
+        );
+
+        final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+        final List<String> output = await runCapturingPrint(runner, <String>[
+          'drive-examples',
+          '--windows',
+        ]);
+
+        expect(
+          output,
+          containsAllInOrder(<Matcher>[
+            contains('Running for plugin'),
+            contains('No issues found!'),
+          ]),
+        );
+
+        expect(
+            processRunner.recordedCalls,
+            orderedEquals(<ProcessCall>[
+              ProcessCall(
+                  getFlutterCommand(mockPlatform),
+                  const <String>[
+                    'test',
+                    '-d',
+                    'windows',
+                    'integration_test/first_test.dart',
+                  ],
+                  pluginExampleDirectory.path),
+              ProcessCall(
+                  getFlutterCommand(mockPlatform),
+                  const <String>[
+                    'test',
+                    '-d',
+                    'windows',
+                    'integration_test/second_test.dart',
+                  ],
+                  pluginExampleDirectory.path),
+            ]));
+      });
+    });
+
     test('driving when plugin does not suppport web is a no-op', () async {
       createFakePlugin('plugin', packagesDir, extraFiles: <String>[
         'example/integration_test/plugin_test.dart',
@@ -511,6 +699,112 @@ void main() {
                   'web-server',
                   '--web-port=7357',
                   '--browser-name=chrome',
+                  '--web-renderer=canvaskit',
+                  '--driver',
+                  'test_driver/integration_test.dart',
+                  '--target',
+                  'integration_test/plugin_test.dart',
+                ],
+                pluginExampleDirectory.path),
+          ]));
+    });
+
+    test('drives a web plugin compiled to WASM', () async {
+      final RepositoryPackage plugin = createFakePlugin(
+        'plugin',
+        packagesDir,
+        extraFiles: <String>[
+          'example/integration_test/plugin_test.dart',
+          'example/test_driver/integration_test.dart',
+          'example/web/index.html',
+        ],
+        platformSupport: <String, PlatformDetails>{
+          platformWeb: const PlatformDetails(PlatformSupport.inline),
+        },
+      );
+
+      final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+      final List<String> output = await runCapturingPrint(runner, <String>[
+        'drive-examples',
+        '--web',
+        '--wasm',
+      ]);
+
+      expect(
+        output,
+        containsAllInOrder(<Matcher>[
+          contains('Running for plugin'),
+          contains('No issues found!'),
+        ]),
+      );
+
+      expect(
+          processRunner.recordedCalls,
+          orderedEquals(<ProcessCall>[
+            ProcessCall(
+                getFlutterCommand(mockPlatform),
+                const <String>[
+                  'drive',
+                  '-d',
+                  'web-server',
+                  '--web-port=7357',
+                  '--browser-name=chrome',
+                  '--wasm',
+                  '--driver',
+                  'test_driver/integration_test.dart',
+                  '--target',
+                  'integration_test/plugin_test.dart',
+                ],
+                pluginExampleDirectory.path),
+          ]));
+    });
+
+    // TODO(dit): Clean this up, https://github.com/flutter/flutter/issues/151869
+    test('drives a web plugin (html renderer in stable)', () async {
+      // Override the platform to simulate CHANNEL: stable
+      mockPlatform.environment['CHANNEL'] = 'stable';
+
+      final RepositoryPackage plugin = createFakePlugin(
+        'plugin',
+        packagesDir,
+        extraFiles: <String>[
+          'example/integration_test/plugin_test.dart',
+          'example/test_driver/integration_test.dart',
+          'example/web/index.html',
+        ],
+        platformSupport: <String, PlatformDetails>{
+          platformWeb: const PlatformDetails(PlatformSupport.inline),
+        },
+      );
+
+      final Directory pluginExampleDirectory = getExampleDir(plugin);
+
+      final List<String> output = await runCapturingPrint(runner, <String>[
+        'drive-examples',
+        '--web',
+      ]);
+
+      expect(
+        output,
+        containsAllInOrder(<Matcher>[
+          contains('Running for plugin'),
+          contains('No issues found!'),
+        ]),
+      );
+
+      expect(
+          processRunner.recordedCalls,
+          orderedEquals(<ProcessCall>[
+            ProcessCall(
+                getFlutterCommand(mockPlatform),
+                const <String>[
+                  'drive',
+                  '-d',
+                  'web-server',
+                  '--web-port=7357',
+                  '--browser-name=chrome',
+                  '--web-renderer=html',
                   '--driver',
                   'test_driver/integration_test.dart',
                   '--target',
@@ -559,6 +853,7 @@ void main() {
                   'web-server',
                   '--web-port=7357',
                   '--browser-name=chrome',
+                  '--web-renderer=canvaskit',
                   '--driver',
                   'test_driver/integration_test.dart',
                   '--target',
@@ -610,6 +905,7 @@ void main() {
                   'web-server',
                   '--web-port=7357',
                   '--browser-name=chrome',
+                  '--web-renderer=canvaskit',
                   '--chrome-binary=/path/to/chrome',
                   '--driver',
                   'test_driver/integration_test.dart',
@@ -1056,6 +1352,7 @@ void main() {
                   'web-server',
                   '--web-port=7357',
                   '--browser-name=chrome',
+                  '--web-renderer=canvaskit',
                   '--driver',
                   'test_driver/integration_test.dart',
                   '--target',
@@ -1070,6 +1367,7 @@ void main() {
                   'web-server',
                   '--web-port=7357',
                   '--browser-name=chrome',
+                  '--web-renderer=canvaskit',
                   '--driver',
                   'test_driver/integration_test.dart',
                   '--target',
@@ -1086,24 +1384,21 @@ void main() {
         extraFiles: <String>[
           'example/integration_test/bar_test.dart',
           'example/integration_test/foo_test.dart',
-          'example/macos/macos.swift',
+          'example/ios/ios.swift',
         ],
         platformSupport: <String, PlatformDetails>{
-          platformMacOS: const PlatformDetails(PlatformSupport.inline),
+          platformIOS: const PlatformDetails(PlatformSupport.inline),
         },
       );
 
+      setMockFlutterDevicesOutput();
       // Simulate failure from `flutter test`.
-      processRunner
-              .mockProcessesForExecutable[getFlutterCommand(mockPlatform)] =
-          <FakeProcessInfo>[
-        FakeProcessInfo(MockProcess(exitCode: 1), <String>['test']),
-      ];
+      processRunner.mockProcessesForExecutable[getFlutterCommand(mockPlatform)]!
+          .add(FakeProcessInfo(MockProcess(exitCode: 1), <String>['test']));
 
       Error? commandError;
-      final List<String> output =
-          await runCapturingPrint(runner, <String>['drive-examples', '--macos'],
-              errorHandler: (Error e) {
+      final List<String> output = await runCapturingPrint(
+          runner, <String>['drive-examples', '--ios'], errorHandler: (Error e) {
         commandError = e;
       });
 
@@ -1122,12 +1417,14 @@ void main() {
       expect(
           processRunner.recordedCalls,
           orderedEquals(<ProcessCall>[
+            ProcessCall(getFlutterCommand(mockPlatform),
+                const <String>['devices', '--machine'], null),
             ProcessCall(
                 getFlutterCommand(mockPlatform),
                 const <String>[
                   'test',
                   '-d',
-                  'macos',
+                  _fakeIOSDevice,
                   'integration_test',
                 ],
                 pluginExampleDirectory.path),
@@ -1168,6 +1465,7 @@ void main() {
                     'web-server',
                     '--web-port=7357',
                     '--browser-name=chrome',
+                    '--web-renderer=canvaskit',
                     '--driver',
                     'test_driver/integration_test.dart',
                     '--target',
@@ -1247,6 +1545,7 @@ void main() {
                     'web-server',
                     '--web-port=7357',
                     '--browser-name=chrome',
+                    '--web-renderer=canvaskit',
                     '--driver',
                     'test_driver/integration_test.dart',
                     '--target',
